@@ -1,0 +1,72 @@
+# El comando "/e2e" en un comentario de PR (o "/e2e @smoke" para un subconjunto).
+#
+# Este workflow sólo VALIDA el pedido y DISPARA e2e.yml sobre la rama del PR. No ejecuta código del PR:
+# un workflow de issue_comment corre en el contexto de main, y si ejecutara el código del PR, ese código
+# podría escribir en la caché de main (envenenarla) y los workflows de main la usarían después. CodeQL
+# lo marcó como actions/cache-poisoning. Los tests corren en e2e.yml, en el contexto de la rama del PR.
+#
+# Trampa central: issue_comment corre SIEMPRE la versión de este archivo que está en main. Un cambio al
+# comando no se puede probar desde el mismo PR que lo cambia.
+name: E2E command
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+jobs:
+  request:
+    name: Pedido
+    # Filtro barato antes de levantar nada: un comentario en un PR, que empieza con /e2e, y no de un bot
+    # (la ayuda que responde el bot contiene "/e2e" y lo volvería a disparar).
+    if: >-
+      github.event.issue.pull_request &&
+      startsWith(github.event.comment.body, '/e2e') &&
+      !endsWith(github.event.comment.user.login, '[bot]')
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write         # disparar e2e.yml
+      pull-requests: write   # responder el rechazo o la ayuda
+      issues: write          # la reacción en el comentario
+    steps:
+      - name: Validar y disparar
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.issue.number }}
+          ACTOR: ${{ github.event.comment.user.login }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+          BODY: ${{ github.event.comment.body }}   # como variable: nunca se interpreta como código
+        run: |
+          reply() { gh pr comment "$PR" --repo "$REPO" --body "$1"; }
+
+          # Recibido: una reacción, para que se vea que alguien lo tomó.
+          gh api "repos/$REPO/issues/comments/$COMMENT_ID/reactions" -f content=eyes > /dev/null
+
+          permission=$(gh api "repos/$REPO/collaborators/$ACTOR/permission" --jq .permission)
+          case "$permission" in
+            admin|maintain|write) ;;
+            *) reply "@$ACTOR \`/e2e\` sólo lo pueden pedir personas con permiso de escritura en el repo."; exit 0 ;;
+          esac
+
+          # El evento no trae la rama del PR. Una rama de un fork no existe en este repo: se rechaza.
+          read -r branch fork < <(gh pr view "$PR" --repo "$REPO" --json headRefName,isCrossRepository --jq '"\(.headRefName) \(.isCrossRepository)"')
+          if [ "$fork" = "true" ]; then
+            reply "\`/e2e\` no corre en PRs que vienen de un fork."; exit 0
+          fi
+
+          # Sólo la primera línea, y sólo dos formas válidas: "/e2e" o "/e2e @etiqueta".
+          first=$(printf '%s\n' "$BODY" | head -n1 | tr -d '\r')
+          if [[ "$first" =~ ^/e2e[[:space:]]*$ ]]; then
+            grep=""
+          elif [[ "$first" =~ ^/e2e[[:space:]]+(@[a-z0-9-]+)[[:space:]]*$ ]]; then
+            grep="${BASH_REMATCH[1]}"
+          else
+            reply "$(printf 'No entendí el pedido. Uso:\n\n- `/e2e`: corre todos los tests de punta a punta.\n- `/e2e @smoke`: corre sólo los marcados con esa etiqueta.')"
+            exit 0
+          fi
+
+          gh workflow run e2e.yml --repo "$REPO" --ref "$branch" -f pr="$PR" -f grep="$grep"
+          echo "Disparado e2e.yml sobre $branch (PR #$PR, filtro: ${grep:-ninguno})."

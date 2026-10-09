@@ -1,108 +1,40 @@
-# Tests de punta a punta a pedido: comentar "/e2e" en un PR (o "/e2e @smoke" para un subconjunto).
+# Tests de punta a punta con Playwright sobre la app armada como en producción, con mocks.
 #
-# Trampa central: un workflow de issue_comment corre SIEMPRE la versión de este archivo que está en
-# main, no la del PR. Un cambio a este comando no se puede probar desde el mismo PR que lo cambia.
-#
-# Seguridad: el comentario lo puede escribir cualquiera con cuenta de GitHub en un repo público. Por eso
-# (1) sólo lo puede disparar alguien con permiso de escritura, (2) los PRs de forks se rechazan, (3) el
-# texto del comentario nunca se pega en un script, y (4) el código del PR corre en un job SIN permisos
-# de escritura; comentar y marcar el resultado lo hacen otros jobs que no ejecutan ese código.
+# Lo dispara e2e-command.yml cuando alguien comenta "/e2e" en un PR, sobre la rama de ese PR: así corre
+# en el contexto de esa rama (su caché es la de la rama, no la de main). También se puede correr a mano
+# desde la pestaña Actions.
 name: E2E
 
 on:
-  issue_comment:
-    types: [created]
-  workflow_dispatch:   # para correrlo a mano sobre main
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Número del PR al que responder (vacío si se corre a mano)
+        required: false
+        default: ""
+      grep:
+        description: Etiqueta para correr un subconjunto (por ejemplo @smoke)
+        required: false
+        default: ""
 
 permissions:
   contents: read
 
 jobs:
-  request:
-    name: Pedido
-    # Filtro barato antes de levantar nada: un comentario en un PR, que empieza con /e2e, y no de un bot
-    # (la ayuda que responde el bot contiene "/e2e" y lo volvería a disparar).
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.issue.pull_request &&
-       startsWith(github.event.comment.body, '/e2e') &&
-       !endsWith(github.event.comment.user.login, '[bot]'))
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write   # responder el rechazo o la ayuda
-      issues: write          # la reacción en el comentario
-    outputs:
-      run: ${{ steps.check.outputs.run }}
-      sha: ${{ steps.check.outputs.sha }}
-      grep: ${{ steps.check.outputs.grep }}
-      pr: ${{ steps.check.outputs.pr }}
-    steps:
-      - id: check
-        name: Validar quién lo pide y qué pide
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          EVENT: ${{ github.event_name }}
-          PR: ${{ github.event.issue.number }}
-          ACTOR: ${{ github.event.comment.user.login }}
-          COMMENT_ID: ${{ github.event.comment.id }}
-          BODY: ${{ github.event.comment.body }}   # como variable: nunca se interpreta como código
-        run: |
-          if [ "$EVENT" = "workflow_dispatch" ]; then
-            { echo "run=true"; echo "sha=$GITHUB_SHA"; echo "grep="; echo "pr="; } >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          echo "pr=$PR" >> "$GITHUB_OUTPUT"
-          reply() { gh pr comment "$PR" --repo "$REPO" --body "$1"; echo "run=false" >> "$GITHUB_OUTPUT"; }
-
-          # Recibido: una reacción, para que se vea que alguien lo tomó.
-          gh api "repos/$REPO/issues/comments/$COMMENT_ID/reactions" -f content=eyes > /dev/null
-
-          permission=$(gh api "repos/$REPO/collaborators/$ACTOR/permission" --jq .permission)
-          case "$permission" in
-            admin|maintain|write) ;;
-            *) reply "@$ACTOR \`/e2e\` sólo lo pueden pedir personas con permiso de escritura en el repo."; exit 0 ;;
-          esac
-
-          # El evento no trae el commit del PR: sin esto se testearía main.
-          read -r sha fork < <(gh pr view "$PR" --repo "$REPO" --json headRefOid,isCrossRepository --jq '"\(.headRefOid) \(.isCrossRepository)"')
-          if [ "$fork" = "true" ]; then
-            reply "\`/e2e\` no corre en PRs que vienen de un fork."; exit 0
-          fi
-
-          # Sólo la primera línea, y sólo dos formas válidas: "/e2e" o "/e2e @etiqueta".
-          first=$(printf '%s\n' "$BODY" | head -n1 | tr -d '\r')
-          if [[ "$first" =~ ^/e2e[[:space:]]*$ ]]; then
-            grep=""
-          elif [[ "$first" =~ ^/e2e[[:space:]]+(@[a-z0-9-]+)[[:space:]]*$ ]]; then
-            grep="${BASH_REMATCH[1]}"
-          else
-            reply "$(printf 'No entendí el pedido. Uso:\n\n- `/e2e`: corre todos los tests de punta a punta.\n- `/e2e @smoke`: corre sólo los marcados con esa etiqueta.')"
-            exit 0
-          fi
-          { echo "run=true"; echo "sha=$sha"; echo "grep=$grep"; } >> "$GITHUB_OUTPUT"
-
   e2e:
     name: E2E
-    needs: request
-    if: needs.request.outputs.run == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read   # este job corre el código del PR: no puede escribir nada
     env:
       HUSKY: 0
     steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.request.outputs.sha }}   # el commit del PR, no main
+      - uses: actions/checkout@v7   # la rama sobre la que se disparó: la del PR
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
           node-version-file: web/.nvmrc
-          # SIN cache a propósito. Este workflow corre en el contexto de main (issue_comment) pero ejecuta
-          # código del PR: si guardara caché, un PR podría dejar ahí algo envenenado que después usarían
-          # los workflows de main. CodeQL lo marcó (actions/cache-poisoning). Tarda más, es más seguro.
+          cache: pnpm
       - name: Instalar dependencias
         run: pnpm install --frozen-lockfile
       - name: Instalar el navegador
@@ -111,8 +43,11 @@ jobs:
       - name: Tests de punta a punta
         working-directory: web
         env:
-          GREP: ${{ needs.request.outputs.grep }}
-        run: pnpm exec playwright test ${GREP:+--grep "$GREP"}
+          GREP: ${{ inputs.grep }}
+        run: |
+          # Defensa extra: el filtro sólo puede ser una etiqueta (ya lo valida e2e-command.yml).
+          if [ -n "$GREP" ] && ! [[ "$GREP" =~ ^@[a-z0-9-]+$ ]]; then echo "Filtro inválido"; exit 1; fi
+          pnpm exec playwright test ${GREP:+--grep "$GREP"}
       - name: Guardar el reporte, capturas y videos
         if: always()
         uses: actions/upload-artifact@v7
@@ -125,8 +60,8 @@ jobs:
 
   report:
     name: Respuesta
-    needs: [request, e2e]
-    if: always() && needs.request.outputs.run == 'true' && needs.request.outputs.pr != ''
+    needs: e2e
+    if: always() && inputs.pr != ''
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write   # el comentario con el resultado
@@ -136,9 +71,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          PR: ${{ needs.request.outputs.pr }}
-          SHA: ${{ needs.request.outputs.sha }}
-          GREP: ${{ needs.request.outputs.grep }}
+          PR: ${{ inputs.pr }}
+          SHA: ${{ github.sha }}   # el último commit de la rama del PR al momento de disparar
+          GREP: ${{ inputs.grep }}
           RESULT: ${{ needs.e2e.result }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
