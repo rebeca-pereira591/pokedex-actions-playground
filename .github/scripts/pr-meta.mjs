@@ -21,14 +21,26 @@ if (!title.test(pr.title)) {
 
 // 2. Descripción: los bots (Dependabot) no usan la plantilla; el resto tiene que completar las secciones.
 const isBot = pr.user.type === "Bot";
+// Una sección cuenta como vacía si no está, si no tiene texto, o si quedó igual que en la plantilla.
+// Se compara contra la plantilla en vez de borrar sus comentarios <!-- -->: borrar con una regex es una
+// sanitización incompleta (CodeQL lo marcó: "<!-<!---->-" deja un "<!--" después del reemplazo).
+function sections(markdown) {
+  const result = new Map();
+  for (const part of markdown.replace(/\r/g, "").split(/^## /m).slice(1)) {
+    const newline = part.indexOf("\n");
+    const name = (newline === -1 ? part : part.slice(0, newline)).trim();
+    result.set(name, newline === -1 ? "" : part.slice(newline + 1).trim());
+  }
+  return result;
+}
+
 if (!isBot) {
-  const template = readFileSync(".github/PULL_REQUEST_TEMPLATE.md", "utf8");
-  const required = [...template.matchAll(/^## (.+)$/gm)].map((m) => m[1]).filter((s) => s !== "Checklist");
-  // Sin los comentarios de la plantilla (<!-- ... -->), lo que queda en cada sección es lo que escribió la persona.
-  const body = (pr.body ?? "").replace(/<!--[\s\S]*?-->/g, "").replace(/\r/g, "");
-  for (const section of required) {
-    const text = body.match(new RegExp(`^## ${section}\\n([\\s\\S]*?)(?=^## |$(?![\\s\\S]))`, "m"))?.[1].trim();
-    if (!text) errors.push(`La sección "${section}" de la descripción está vacía (o no está).`);
+  const template = sections(readFileSync(".github/PULL_REQUEST_TEMPLATE.md", "utf8"));
+  const body = sections(pr.body ?? "");
+  for (const [name, placeholder] of template) {
+    if (name === "Checklist") continue;
+    const text = body.get(name);
+    if (!text || text === placeholder) errors.push(`La sección "${name}" de la descripción está vacía (o no está).`);
   }
 }
 
