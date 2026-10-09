@@ -20,8 +20,15 @@ describe("strongestStat", () => {
   });
 
   it("ante un empate se queda con la primera", () => {
-    expect(strongestStat({ ...base, specialAttack: 50, speed: 50, attack: 70, hp: 70 }).key).toBe(
-      "hp",
-    );
+    expect(
+      strongestStat({
+        hp: 70,
+        attack: 70,
+        defense: 50,
+        specialAttack: 50,
+        specialDefense: 50,
+        speed: 50,
+      }).key,
+    ).toBe("hp");
   });
 });
