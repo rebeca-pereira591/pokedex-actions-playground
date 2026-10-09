@@ -41,3 +41,8 @@ export function groupWeaknesses(weaknesses: Weakness[]): WeaknessGroup[] {
     types: weaknesses.filter((w) => w.multiplier === group.multiplier).map((w) => w.type),
   })).filter((group) => group.types.length > 0);
 }
+
+/** true si el Pokémon tiene exactamente ese total de estadísticas base */
+export function hasTotal(total: number, expected: string) {
+  return total == Number(expected);
+}
