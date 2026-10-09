@@ -1,0 +1,108 @@
+# Checks de cada PR. Corre siempre (sin `paths:`), decide adentro qué partes revisar, y el job
+# "PR gate" da un único veredicto. Ese es el único check que la regla de main exige.
+name: PR checks
+
+on:
+  pull_request:          # sin `paths:` a propósito: un check requerido tiene que reportar siempre
+  workflow_dispatch:     # para correrlo a mano desde la pestaña Actions
+
+# Un push nuevo al mismo PR cancela la corrida anterior: sólo importa el último commit.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# El token del workflow sólo puede leer el repo. Cada job pide más si lo necesita.
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    name: Detectar cambios
+    runs-on: ubuntu-latest
+    outputs:
+      web: ${{ steps.filter.outputs.web }}
+      api: ${{ steps.filter.outputs.api }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # historia completa, para poder comparar contra la base del PR
+      - id: filter
+        name: Qué partes toca el PR
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          # A mano (workflow_dispatch) no hay PR: se revisa todo.
+          if [ -z "$BASE" ]; then
+            echo "web=true" >> "$GITHUB_OUTPUT"
+            echo "api=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          files=$(git diff --name-only "$BASE"...HEAD)
+          echo "Archivos del PR:"; echo "$files"
+          # Lo compartido (este workflow, la config de pnpm, global.json) cuenta para la parte que afecta.
+          web=false; api=false
+          echo "$files" | grep -qE '^(web/|package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|\.npmrc|\.github/workflows/pr\.yml)' && web=true
+          echo "$files" | grep -qE '^(api/|fixtures/|global\.json|\.github/workflows/pr\.yml)' && api=true
+          echo "web=$web" >> "$GITHUB_OUTPUT"
+          echo "api=$api" >> "$GITHUB_OUTPUT"
+
+  web:
+    name: Front (lint, build, tests)
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    env:
+      HUSKY: 0   # en CI no hace falta instalar los hooks de git
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6   # toma la versión de "packageManager" del package.json de la raíz
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: web/.nvmrc
+          cache: pnpm               # guarda las descargas de pnpm entre corridas
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile   # falla si el lockfile no coincide con los package.json
+      - name: Lint
+        working-directory: web
+        run: pnpm lint
+      - name: Type check y build
+        working-directory: web
+        run: pnpm build
+      - name: Tests
+        working-directory: web
+        run: pnpm test
+
+  api:
+    name: Back (build, tests)
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.x
+      - name: Restaurar paquetes
+        run: dotnet restore api/Pokedex.slnx
+      - name: Build
+        run: dotnet build api/Pokedex.slnx --no-restore -c Release
+      - name: Tests
+        run: dotnet test --solution api/Pokedex.slnx --no-build -c Release
+
+  gate:
+    name: PR gate
+    needs: [changes, web, api]
+    if: always()   # corre aunque un job anterior falle o se saltee: siempre da un veredicto
+    runs-on: ubuntu-latest
+    steps:
+      - name: Veredicto
+        run: |
+          echo "changes=${{ needs.changes.result }} web=${{ needs.web.result }} api=${{ needs.api.result }}"
+          [ "${{ needs.changes.result }}" = "success" ] || { echo "No se pudo detectar qué cambió."; exit 1; }
+          for r in "${{ needs.web.result }}" "${{ needs.api.result }}"; do
+            case "$r" in
+              success|skipped) ;;   # skipped = el PR no tocaba esa parte
+              *) echo "Un job terminó en: $r"; exit 1 ;;
+            esac
+          done
+          echo "Todo en orden."
