@@ -10,8 +10,6 @@ public class PokemonEndpointsTests(PokedexApiFactory factory) : IClassFixture<Po
     private readonly HttpClient _client = factory.CreateClient();
     private readonly CancellationToken _ct = TestContext.Current.CancellationToken;
 
-    private Task<T?> Get<T>(string url) => _client.GetFromJsonAsync<T>(url, _ct);
-
     [Fact]
     public async Task List_is_ordered_by_number_and_paginated()
     {
@@ -116,4 +114,6 @@ public class PokemonEndpointsTests(PokedexApiFactory factory) : IClassFixture<Po
         Assert.Equal(18, types!.Count);
         Assert.Equal(new TypeDto("ghost", "Fantasma"), types.Single(t => t.Name == "ghost"));
     }
+
+    private Task<T?> Get<T>(string url) => _client.GetFromJsonAsync<T>(url, _ct);
 }

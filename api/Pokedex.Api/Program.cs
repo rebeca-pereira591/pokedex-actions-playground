@@ -59,7 +59,7 @@ api.MapGet("/pokemon/{idOrName}", (string idOrName, PokedexService pokedex, Canc
 
 api.MapGet("/types", () => Results.Ok(PokedexService.GetTypes()));
 
-app.Run();
+await app.RunAsync();
 
 // Traduce los errores esperables a respuestas HTTP: un filtro inválido es 400 y un Pokémon que no
 // existe es 404. Cualquier otro error sigue siendo 500.
@@ -79,5 +79,8 @@ static async Task<IResult> Handle<T>(Func<Task<T>> action)
     }
 }
 
-// Expuesto para que los tests de integración puedan usar WebApplicationFactory<Program>.
+// Expuesto para que los tests de integración puedan usar WebApplicationFactory<Program>. No puede ser
+// static (WebApplicationFactory la usa como argumento de tipo), por eso se silencia S1118.
+#pragma warning disable S1118
 public partial class Program;
+#pragma warning restore S1118

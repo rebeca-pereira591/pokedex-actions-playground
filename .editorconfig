@@ -13,3 +13,29 @@ indent_size = 4
 
 [*.md]
 trim_trailing_whitespace = false
+
+# Analizadores de C# (fase 4). Todo está activo salvo estas convenciones de StyleCop, que chocan con
+# C# moderno o con el estilo elegido en este repo.
+[*.cs]
+# Un tipo por archivo, con su nombre: los contratos y modelos son muchos records chicos agrupados.
+dotnet_diagnostic.SA1402.severity = none
+dotnet_diagnostic.SA1649.severity = none
+# Encabezado de licencia en cada archivo.
+dotnet_diagnostic.SA1633.severity = none
+# Usings adentro del namespace: con file-scoped namespaces la convención es afuera.
+dotnet_diagnostic.SA1200.severity = none
+# Prefijo `this.`: la convención actual de .NET no lo usa.
+dotnet_diagnostic.SA1101.severity = none
+# Llaves obligatorias: el código usa guard clauses de una línea (`if (x) return y;`).
+dotnet_diagnostic.SA1503.severity = none
+# Documentación XML: esto no es una librería publicada.
+dotnet_diagnostic.SA0001.severity = none
+# Campos privados con guion bajo (`_client`): es la convención de .NET; StyleCop pide lo contrario.
+dotnet_diagnostic.SA1309.severity = none
+
+# En los tests, los nombres con guiones bajos se leen como una frase: Linear_chain_has_one_pokemon_per_stage.
+[api/Pokedex.Api.Tests/**.cs]
+dotnet_diagnostic.CA1707.severity = none
+# Los tests comparan multiplicadores exactos (0, ¼, ½, 2, 4): fracciones binarias que un double
+# representa sin error. En el código de la app S1244 sigue activa y se silencia caso por caso.
+dotnet_diagnostic.S1244.severity = none

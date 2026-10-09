@@ -6,13 +6,28 @@ public sealed record EvolutionStep(int SpeciesId, string Name, string? Trigger);
 
 public static class Evolution
 {
+    private static readonly Dictionary<string, string> Items = new()
+    {
+        ["thunder-stone"] = "Piedra Trueno",
+        ["water-stone"] = "Piedra Agua",
+        ["fire-stone"] = "Piedra Fuego",
+        ["leaf-stone"] = "Piedra Hoja",
+        ["ice-stone"] = "Piedra Hielo",
+        ["moon-stone"] = "Piedra Lunar",
+        ["sun-stone"] = "Piedra Solar",
+        ["shiny-stone"] = "Piedra Día",
+        ["dusk-stone"] = "Piedra Noche",
+        ["dawn-stone"] = "Piedra Alba",
+        ["oval-stone"] = "Piedra Oval",
+    };
+
     // PokeAPI da la evolución como un árbol. Para la ficha se aplana en etapas por profundidad:
     // Gastly -> Haunter -> Gengar son 3 etapas de un Pokémon cada una; Eevee es una etapa con Eevee
     // y otra con sus 8 evoluciones (las ramas).
     public static IReadOnlyList<IReadOnlyList<EvolutionStep>> Stages(ChainLink root)
     {
         var stages = new List<IReadOnlyList<EvolutionStep>>();
-        IReadOnlyList<ChainLink> level = [root];
+        List<ChainLink> level = [root];
         while (level.Count > 0)
         {
             stages.Add(level
@@ -64,22 +79,7 @@ public static class Evolution
     {
         "day" => ", de día",
         "night" => ", de noche",
-        _ => "",
-    };
-
-    private static readonly Dictionary<string, string> Items = new()
-    {
-        ["thunder-stone"] = "Piedra Trueno",
-        ["water-stone"] = "Piedra Agua",
-        ["fire-stone"] = "Piedra Fuego",
-        ["leaf-stone"] = "Piedra Hoja",
-        ["ice-stone"] = "Piedra Hielo",
-        ["moon-stone"] = "Piedra Lunar",
-        ["sun-stone"] = "Piedra Solar",
-        ["shiny-stone"] = "Piedra Día",
-        ["dusk-stone"] = "Piedra Noche",
-        ["dawn-stone"] = "Piedra Alba",
-        ["oval-stone"] = "Piedra Oval",
+        _ => string.Empty,
     };
 
     private static string ItemName(string slug) =>
