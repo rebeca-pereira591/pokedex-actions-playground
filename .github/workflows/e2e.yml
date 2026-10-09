@@ -81,4 +81,4 @@ jobs:
           gh api "repos/$REPO/statuses/$SHA" -f state="$state" -f context="E2E" \
             -f description="Tests de punta a punta: $title" -f target_url="$RUN_URL" > /dev/null
           scope=${GREP:-todos}
-          gh pr comment "$PR" --repo "$REPO" --body "$(printf '### E2E: %s\n\nCommit `%s`, tests: %s. [Ver el run](%s): si algo falló, el artifact **playwright-report** tiene el reporte, las capturas y el video.' "$title" "${SHA:0:7}" "$scope" "$RUN_URL")"
+          gh pr comment "$PR" --repo "$REPO" --body "$(printf '### E2E: %s\n\nCommit `%s`, tests: `%s`. [Ver el run](%s): si algo falló, el artifact **playwright-report** tiene el reporte, las capturas y el video.' "$title" "${SHA:0:7}" "$scope" "$RUN_URL")"
