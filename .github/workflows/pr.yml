@@ -207,7 +207,8 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/dependency-review-action@v5
+      - name: Revisar dependencias nuevas   # con nombre: sin él, el comentario lo toma por un paso de preparación
+        uses: actions/dependency-review-action@v5
         with:
           fail-on-severity: moderate
 
