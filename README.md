@@ -83,6 +83,7 @@ cd web
 pnpm test                                 # funciones puras, componentes y páginas, con MSW
 pnpm build                                # type check + build
 pnpm lint                                 # Biome
+pnpm coverage                             # tests con cobertura (mínimo 90 % de líneas)
 ```
 
 Desde la fase 1, `pnpm install` activa **hooks de git**: cada commit formatea lo que se commitea
