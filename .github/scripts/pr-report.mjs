@@ -68,8 +68,17 @@ async function annotations(job) {
     });
 }
 
+// La API devuelve los jobs en cualquier orden: se ordenan como se leen en el workflow.
+const ORDER = ["Detectar cambios", "Front (", "Front tests", "Back", GATE_JOB];
+const rank = (job) => {
+  const index = ORDER.findIndex((prefix) => job.name.startsWith(prefix));
+  return index === -1 ? ORDER.length : index;
+};
+
 const { jobs } = await github(`/actions/runs/${runId}/jobs?per_page=100`);
-const reported = jobs.filter((job) => job.name !== OWN_JOB);
+const reported = jobs
+  .filter((job) => job.name !== OWN_JOB)
+  .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
 
 const rows = [];
 const details = [];
