@@ -44,5 +44,5 @@ export function groupWeaknesses(weaknesses: Weakness[]): WeaknessGroup[] {
 
 /** true si el Pokémon tiene exactamente ese total de estadísticas base */
 export function hasTotal(total: number, expected: string) {
-  return total == Number(expected);
+  return total === Number(expected);
 }
