@@ -1,0 +1,24 @@
+# Dependabot revisa las dependencias una vez por semana y abre PRs para actualizarlas. Además, con las
+# "security updates" activadas en el repo, abre un PR apenas aparece una vulnerabilidad conocida.
+version: 2
+updates:
+  - package-ecosystem: npm          # pnpm usa el ecosistema npm; lee pnpm-lock.yaml de la raíz
+    directory: /
+    schedule:
+      interval: weekly
+    groups:                         # un PR por semana con todo lo menor, en vez de uno por paquete
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: nuget
+    directory: /api
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions   # también las versiones de las acciones de los workflows
+    directory: /
+    schedule:
+      interval: weekly
