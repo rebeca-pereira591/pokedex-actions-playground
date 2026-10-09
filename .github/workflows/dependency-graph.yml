@@ -39,7 +39,7 @@ jobs:
           fi
           head -3 pnpm-lock.yaml
       # Acción de terceros: fijada por SHA (un tag se puede mover, un SHA no). v0.1.6, del 2026-09-03.
-      - uses: advanced-security/component-detection-dependency-submission-action@b282c67b1008fde9b60da4bdfcd8849613e293b2 # v0.1.6
+      - uses: advanced-security/component-detection-dependency-submission-action@a02aeda7a175ad4dd38a13c4d3ff2df9da8f2cf0 # v0.2.0
         with:
           detectorsCategories: Npm,NuGet
           directoryExclusionList: "**/node_modules/**"
