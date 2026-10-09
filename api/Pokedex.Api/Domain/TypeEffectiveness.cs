@@ -27,7 +27,7 @@ public static class TypeEffectiveness
         PokemonTypes.All
             .Select(attacking => new TypeMultiplier(
                 attacking,
-                defending.Aggregate(1.0, (total, type) => total + Against(attacking, type))))
+                defending.Aggregate(1.0, (total, type) => total * Against(attacking, type))))
             .Where(m => m.Multiplier != 1)
             .ToList();
 }
