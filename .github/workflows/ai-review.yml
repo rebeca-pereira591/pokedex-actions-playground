@@ -1,0 +1,37 @@
+# Review con IA, a pedido: se dispara al poner la etiqueta "ai-review" en un PR.
+# Para volver a pedirlo (por ejemplo, después de nuevos commits): sacar y volver a poner la etiqueta.
+name: AI review
+
+on:
+  pull_request:
+    types: [labeled]   # se dispara con CUALQUIER etiqueta: el job compara cuál fue
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    name: Review con IA
+    # Sólo esta etiqueta, y sólo PRs de este repo (las etiquetas las ponen colaboradores; un fork no
+    # recibe un token que pueda comentar ni usar los modelos).
+    if: >-
+      github.event.label.name == 'ai-review' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      models: read          # usar GitHub Models con el token del workflow: sin claves aparte
+      pull-requests: write  # publicar el review
+    steps:
+      # Las reglas y el script se toman de la rama base (main), no del PR: así un PR no puede cambiar
+      # el prompt para que el review le dé el visto bueno.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          sparse-checkout: .github
+      - name: Revisar el diff y publicar el review
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node .github/scripts/ai-review.mjs
