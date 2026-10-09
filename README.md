@@ -41,6 +41,7 @@ El detalle de cada fase está en [`docs/fases/`](docs/fases/).
 ```text
 api/        .NET 10: minimal API que junta y traduce lo que da PokeAPI (con caché)
 web/        React 19 + Vite + TypeScript: la app, sus componentes y su Storybook
+.husky/     Hooks de git: pre-commit (formato) y pre-push (type check y lint del front)
 fixtures/   Respuestas de PokeAPI grabadas: los tests nunca llaman a la API real
 scripts/    record-fixtures.mjs (graba fixtures) y export-mocks.mjs (genera los mocks del front)
 docs/       Una página por fase
@@ -60,9 +61,11 @@ dotnet run --project api/Pokedex.Api
 # backend sin internet, sólo con los fixtures (37 Pokémon)
 dotnet run --project api/Pokedex.Api --launch-profile offline
 
+# dependencias del front y hooks de git: una sola vez, desde la raíz del repo
+pnpm install
+
 # frontend (http://localhost:5173), con /api apuntando al backend local
 cd web
-pnpm install
 pnpm dev
 
 # frontend sin backend: MSW responde /api en el navegador
@@ -82,7 +85,10 @@ pnpm build                                # type check + build
 pnpm lint                                 # Biome
 ```
 
-En la fase 0 **nadie obliga a correrlos**. Eso es lo que cambia a partir de la fase 1.
+Desde la fase 1, `pnpm install` activa **hooks de git**: cada commit formatea lo que se commitea
+(Biome en el front, `dotnet format` en el back) y cada push corre el type check y el lint del front.
+Se pueden saltear con `--no-verify`, y eso es lo que muestra la fase. Detalle en
+[`docs/fases/01-hooks-locales.md`](docs/fases/01-hooks-locales.md).
 
 ## Datos e imágenes
 

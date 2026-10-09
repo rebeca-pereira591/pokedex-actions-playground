@@ -1,0 +1,12 @@
+{
+  "name": "pokedex-actions-lab",
+  "private": true,
+  "packageManager": "pnpm@12.10.1",
+  "scripts": {
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0"
+  }
+}

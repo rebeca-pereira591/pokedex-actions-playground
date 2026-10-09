@@ -1,3 +1,7 @@
+# El workspace vive en la raíz para que un solo `pnpm install` instale el front y active los hooks.
+packages:
+  - web
+
 # Paquetes a los que se les permite correr scripts al instalarse (pnpm los bloquea por defecto).
 allowBuilds:
   esbuild: true

@@ -1,0 +1,2 @@
+# Formatea y revisa sólo lo que está en el commit. Config: lint-staged.config.mjs
+node_modules/.bin/lint-staged
