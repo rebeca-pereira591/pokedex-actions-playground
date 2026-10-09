@@ -1,0 +1,84 @@
+# Tests de punta a punta con Playwright sobre la app armada como en producción, con mocks.
+#
+# Lo dispara e2e-command.yml cuando alguien comenta "/e2e" en un PR, sobre la rama de ese PR: así corre
+# en el contexto de esa rama (su caché es la de la rama, no la de main). También se puede correr a mano
+# desde la pestaña Actions.
+name: E2E
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Número del PR al que responder (vacío si se corre a mano)
+        required: false
+        default: ""
+      grep:
+        description: Etiqueta para correr un subconjunto (por ejemplo @smoke)
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: E2E
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read   # este job corre el código del PR: no puede escribir nada
+    env:
+      HUSKY: 0
+    steps:
+      - uses: actions/checkout@v7   # la rama sobre la que se disparó: la del PR
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: web/.nvmrc
+          cache: pnpm
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+      - name: Instalar el navegador
+        working-directory: web
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Tests de punta a punta
+        working-directory: web
+        env:
+          GREP: ${{ inputs.grep }}
+        run: |
+          # Defensa extra: el filtro sólo puede ser una etiqueta (ya lo valida e2e-command.yml).
+          if [ -n "$GREP" ] && ! [[ "$GREP" =~ ^@[a-z0-9-]+$ ]]; then echo "Filtro inválido"; exit 1; fi
+          pnpm exec playwright test ${GREP:+--grep "$GREP"}
+      - name: Guardar el reporte, capturas y videos
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: |
+            web/playwright-report
+            web/test-results
+          retention-days: 7
+
+  report:
+    name: Respuesta
+    needs: e2e
+    if: always() && inputs.pr != ''
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write   # el comentario con el resultado
+      statuses: write        # el check "E2E" en el commit del PR
+    steps:
+      - name: Comentar el resultado y marcar el commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ inputs.pr }}
+          SHA: ${{ github.sha }}   # el último commit de la rama del PR al momento de disparar
+          GREP: ${{ inputs.grep }}
+          RESULT: ${{ needs.e2e.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ "$RESULT" = "success" ]; then state=success; title="pasaron"; else state=failure; title="fallaron"; fi
+          gh api "repos/$REPO/statuses/$SHA" -f state="$state" -f context="E2E" \
+            -f description="Tests de punta a punta: $title" -f target_url="$RUN_URL" > /dev/null
+          scope=${GREP:-todos}
+          gh pr comment "$PR" --repo "$REPO" --body "$(printf '### E2E: %s\n\nCommit `%s`, tests: %s. [Ver el run](%s): si algo falló, el artifact **playwright-report** tiene el reporte, las capturas y el video.' "$title" "${SHA:0:7}" "$scope" "$RUN_URL")"
