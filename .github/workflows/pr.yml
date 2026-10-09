@@ -76,7 +76,9 @@ jobs:
         run: pnpm build 2>&1 | sed -E 's#^(src/)#web/\1#'
 
   web-tests:
-    name: Front tests (${{ matrix.shard }}/3)
+    # Sin la matriz en el nombre: si el job se saltea, GitHub no la resuelve y mostraría el texto
+    # literal. GitHub agrega el shard solo: "Front tests (1)", "(2)", "(3)".
+    name: Front tests
     needs: changes
     if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest

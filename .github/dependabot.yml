@@ -6,14 +6,22 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    cooldown:                       # sólo versiones con al menos 14 días publicadas (no aplica a
+      default-days: 14              # los arreglos de seguridad, que llegan apenas salen)
     groups:                         # un PR por semana con todo lo menor, en vez de uno por paquete
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # Los tipos de Node acompañan al runtime (Node 24, web/.nvmrc): su versión mayor no se sube sola.
+      - dependency-name: "@types/node"
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: nuget
     directory: /api
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 14
     groups:
       minor-and-patch:
         update-types: [minor, patch]
@@ -22,3 +30,5 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 14
