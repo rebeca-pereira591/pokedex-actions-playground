@@ -29,6 +29,15 @@ jobs:
       - name: Restaurar paquetes de NuGet
         # El restore deja obj/project.assets.json con el árbol completo, que es lo que lee el detector.
         run: dotnet restore api/Pokedex.slnx
+      - name: Dejar el lockfile de pnpm en formato estándar
+        # pnpm 12 escribe dos documentos YAML: uno de configuración y después el lockfile 9.0 de
+        # siempre. Los detectores sólo entienden el segundo. Se recorta en esta máquina, no en el repo.
+        run: |
+          start=$(grep -n '^---$' pnpm-lock.yaml | sed -n 2p | cut -d: -f1)
+          if [ -n "$start" ]; then
+            tail -n +"$((start + 1))" pnpm-lock.yaml > pnpm-lock.tmp && mv pnpm-lock.tmp pnpm-lock.yaml
+          fi
+          head -3 pnpm-lock.yaml
       # Acción de terceros: fijada por SHA (un tag se puede mover, un SHA no). v0.1.6, del 2026-09-03.
       - uses: advanced-security/component-detection-dependency-submission-action@b282c67b1008fde9b60da4bdfcd8849613e293b2 # v0.1.6
         with:
