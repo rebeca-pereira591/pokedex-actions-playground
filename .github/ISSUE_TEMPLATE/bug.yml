@@ -1,0 +1,36 @@
+name: Algo no funciona
+description: Un error en la app o en el CI.
+title: "bug: "
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: Qué pasa
+      description: Lo que viste.
+      placeholder: Al abrir la ficha de Gengar, las debilidades dicen Normal ×2.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Qué esperabas que pasara
+      placeholder: Gengar es inmune a Normal (×0).
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Cómo reproducirlo
+      placeholder: |
+        1. Abrir http://localhost:5173/pokemon/94
+        2. Mirar la tabla de debilidades
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Dónde
+      options: [Front (web/), Back (api/), CI / workflows, No sé]
+    validations:
+      required: true

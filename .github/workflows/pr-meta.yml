@@ -1,0 +1,23 @@
+# Revisa que el PR esté bien presentado: título con Conventional Commits y descripción completa.
+# Separado de pr.yml porque corre también al EDITAR el PR (cambiar el título o la descripción): ahí no
+# hace falta volver a compilar y testear todo.
+name: PR meta
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  meta:
+    name: Título y descripción
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github   # el script y la plantilla
+      - name: Revisar título y descripción
+        # Sin ${{ }} con el título o la descripción acá: el script los lee del archivo del evento.
+        run: node .github/scripts/pr-meta.mjs
