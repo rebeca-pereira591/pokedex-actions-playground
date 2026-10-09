@@ -1,0 +1,47 @@
+# El sitio principal: lo que está en main, publicado en la raíz de GitHub Pages
+# (https://<usuario>.github.io/<repo>/), con mocks porque no hay backend público.
+name: Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: pages
+  cancel-in-progress: false   # no cortar una publicación a la mitad
+
+permissions:
+  contents: write   # publicar en la rama gh-pages
+
+jobs:
+  deploy:
+    name: Publicar main
+    runs-on: ubuntu-latest
+    env:
+      HUSKY: 0
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: web/.nvmrc
+          cache: pnpm
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+      - name: Build de la app y del Storybook
+        working-directory: web
+        env:
+          VITE_BASE: /${{ github.event.repository.name }}/
+          VITE_HASH_ROUTER: "true"
+        run: |
+          pnpm exec vite build --mode mocks
+          pnpm exec storybook build --quiet --output-dir dist/storybook
+      # Acción de terceros fijada por SHA (v4.9.0). clean-exclude: borra lo viejo de la raíz pero no las
+      # previews de los PRs abiertos.
+      - uses: JamesIves/github-pages-deploy-action@fa24774553152dd7873cd16ebd8d959b010c5445 # v4.9.0
+        with:
+          folder: web/dist
+          branch: gh-pages
+          clean-exclude: pr-preview/
+          force: false

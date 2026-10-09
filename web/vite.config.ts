@@ -3,6 +3,9 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 export default defineConfig({
+  // En GitHub Pages la app vive en una subcarpeta (/pokedex-actions-playground/pr-preview/pr-12/): el
+  // workflow la pasa en VITE_BASE. En local queda en la raíz.
+  base: process.env.VITE_BASE ?? "/",
   plugins: [react()],
   server: {
     // En desarrollo, /api va al backend .NET local
