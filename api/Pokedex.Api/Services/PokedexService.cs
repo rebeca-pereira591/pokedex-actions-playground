@@ -13,6 +13,8 @@ public sealed class PokedexService(PokeApiClient pokeApi)
     public const int MaxPageSize = 60;
     public const int Generations = 9;
 
+    public static IReadOnlyList<TypeDto> GetTypes() => PokemonTypes.All.Select(ToTypeDto).ToList();
+
     public async Task<PokemonPage> GetPageAsync(PokemonQuery query, CancellationToken ct)
     {
         Validate(query);
@@ -83,37 +85,6 @@ public sealed class PokedexService(PokeApiClient pokeApi)
             pokemon.Cries?.Latest ?? pokemon.Cries?.Legacy);
     }
 
-    public static IReadOnlyList<TypeDto> GetTypes() => PokemonTypes.All.Select(ToTypeDto).ToList();
-
-    private async Task<PokemonCard> GetCardAsync(int id, CancellationToken ct)
-    {
-        var pokemonTask = pokeApi.GetPokemonAsync(id, ct);
-        var speciesTask = pokeApi.GetSpeciesAsync(id, ct);
-        return ToCard(await pokemonTask, await speciesTask);
-    }
-
-    private async Task<int> ResolveIdAsync(string idOrName, CancellationToken ct)
-    {
-        if (int.TryParse(idOrName, NumberStyles.None, CultureInfo.InvariantCulture, out var id))
-        {
-            return id;
-        }
-
-        var index = await pokeApi.GetSpeciesIndexAsync(ct);
-        var match = index.Results.FirstOrDefault(s => string.Equals(s.Name, idOrName, StringComparison.OrdinalIgnoreCase));
-        return match?.Id ?? throw new PokeApiNotFoundException($"pokemon-species/{idOrName}");
-    }
-
-    private async Task<DefendingType> DefendingTypeAsync(string name, CancellationToken ct)
-    {
-        var relations = (await pokeApi.GetTypeAsync(name, ct)).DamageRelations;
-        return new DefendingType(
-            name,
-            relations.DoubleDamageFrom.Select(t => t.Name).ToHashSet(),
-            relations.HalfDamageFrom.Select(t => t.Name).ToHashSet(),
-            relations.NoDamageFrom.Select(t => t.Name).ToHashSet());
-    }
-
     private static PokemonCard ToCard(ApiPokemon pokemon, ApiSpecies species) => new(
         pokemon.Id,
         species.Names.FirstOrDefault(n => n.Language.Name == Localization.Spanish)?.Name ?? Localization.TitleFromSlug(species.Name),
@@ -149,5 +120,34 @@ public sealed class PokedexService(PokeApiClient pokeApi)
         if (query.PageSize is < 1 or > MaxPageSize) throw new InvalidQueryException($"pageSize tiene que estar entre 1 y {MaxPageSize}.");
         if (query.Type is { } type && !PokemonTypes.IsKnown(type)) throw new InvalidQueryException($"'{type}' no es un tipo.");
         if (query.Generation is < 1 or > Generations) throw new InvalidQueryException($"generation tiene que estar entre 1 y {Generations}.");
+    }
+
+    private async Task<PokemonCard> GetCardAsync(int id, CancellationToken ct)
+    {
+        var pokemonTask = pokeApi.GetPokemonAsync(id, ct);
+        var speciesTask = pokeApi.GetSpeciesAsync(id, ct);
+        return ToCard(await pokemonTask, await speciesTask);
+    }
+
+    private async Task<int> ResolveIdAsync(string idOrName, CancellationToken ct)
+    {
+        if (int.TryParse(idOrName, NumberStyles.None, CultureInfo.InvariantCulture, out var id))
+        {
+            return id;
+        }
+
+        var index = await pokeApi.GetSpeciesIndexAsync(ct);
+        var match = index.Results.FirstOrDefault(s => string.Equals(s.Name, idOrName, StringComparison.OrdinalIgnoreCase));
+        return match?.Id ?? throw new PokeApiNotFoundException($"pokemon-species/{idOrName}");
+    }
+
+    private async Task<DefendingType> DefendingTypeAsync(string name, CancellationToken ct)
+    {
+        var relations = (await pokeApi.GetTypeAsync(name, ct)).DamageRelations;
+        return new DefendingType(
+            name,
+            relations.DoubleDamageFrom.Select(t => t.Name).ToHashSet(),
+            relations.HalfDamageFrom.Select(t => t.Name).ToHashSet(),
+            relations.NoDamageFrom.Select(t => t.Name).ToHashSet());
     }
 }

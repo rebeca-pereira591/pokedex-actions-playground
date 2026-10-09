@@ -14,7 +14,7 @@ public static partial class Localization
     public static string? PickSpanish(IEnumerable<LocalizedText> entries)
     {
         var text = entries.LastOrDefault(e => e.Language == Spanish)?.Text;
-        return text is null ? null : Whitespace().Replace(text.Replace("­", ""), " ").Trim();
+        return text is null ? null : Whitespace().Replace(text.Replace("­", string.Empty), " ").Trim();
     }
 
     // "mr-mime" -> "Mr Mime", "gengar" -> "Gengar". Para cuando PokeAPI no trae el nombre traducido.

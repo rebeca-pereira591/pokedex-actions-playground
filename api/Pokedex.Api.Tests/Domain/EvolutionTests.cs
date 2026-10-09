@@ -6,7 +6,13 @@ namespace Pokedex.Api.Tests.Domain;
 public class EvolutionTests
 {
     // Ids de las cadenas grabadas en fixtures/pokeapi/evolution-chain
-    private const int Bulbasaur = 1, Pichu = 10, Gastly = 40, Happiny = 51, Eevee = 67, Riolu = 232, Mew = 78;
+    private const int Bulbasaur = 1;
+    private const int Pichu = 10;
+    private const int Gastly = 40;
+    private const int Happiny = 51;
+    private const int Eevee = 67;
+    private const int Riolu = 232;
+    private const int Mew = 78;
 
     [Fact]
     public void Linear_chain_has_one_pokemon_per_stage()

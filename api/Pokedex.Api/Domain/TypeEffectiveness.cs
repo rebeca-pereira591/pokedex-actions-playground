@@ -22,7 +22,10 @@ public static class TypeEffectiveness
 
     // Para un Pokémon de uno o dos tipos, el multiplicador de cada tipo atacante es el PRODUCTO de
     // los multiplicadores contra cada uno de sus tipos. Por eso aparecen x4 y x¼, y una inmunidad
-    // (x0) anula todo. Se devuelven sólo los que no son x1, en el orden de los tipos.
+    // (x0) anula el resto. Se devuelven sólo los que no son x1, en el orden de los tipos.
+    // S1244 (no comparar doubles exactos) se silencia: los multiplicadores son productos de 0, ½, 1 y 2,
+    // fracciones binarias que un double representa exactas, así que comparar con 1 es exacto.
+#pragma warning disable S1244
     public static IReadOnlyList<TypeMultiplier> Weaknesses(IReadOnlyList<DefendingType> defending) =>
         PokemonTypes.All
             .Select(attacking => new TypeMultiplier(
@@ -30,4 +33,5 @@ public static class TypeEffectiveness
                 defending.Aggregate(1.0, (total, type) => total * Against(attacking, type))))
             .Where(m => m.Multiplier != 1)
             .ToList();
+#pragma warning restore S1244
 }

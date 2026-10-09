@@ -5,10 +5,6 @@ namespace Pokedex.Api.Tests.Domain;
 
 public class TypeEffectivenessTests
 {
-    private static Dictionary<string, double> WeaknessesOf(params string[] types) =>
-        TypeEffectiveness.Weaknesses(types.Select(FixtureData.Type).ToList())
-            .ToDictionary(m => m.Type, m => m.Multiplier);
-
     [Fact]
     public void Gengar_is_immune_to_normal_and_fighting_and_takes_a_quarter_from_poison_and_bug()
     {
@@ -67,4 +63,8 @@ public class TypeEffectivenessTests
         Assert.Equal(0.5, TypeEffectiveness.Against("fire", FixtureData.Type("fire")));
         Assert.Equal(1, TypeEffectiveness.Against("normal", FixtureData.Type("fire")));
     }
+
+    private static Dictionary<string, double> WeaknessesOf(params string[] types) =>
+        TypeEffectiveness.Weaknesses(types.Select(FixtureData.Type).ToList())
+            .ToDictionary(m => m.Type, m => m.Multiplier);
 }

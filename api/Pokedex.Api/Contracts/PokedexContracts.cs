@@ -1,7 +1,6 @@
 namespace Pokedex.Api.Contracts;
 
 // Lo que recibe el front. Tiene la forma que necesita cada pantalla, no la de PokeAPI.
-
 public sealed record TypeDto(string Name, string Label);
 
 public sealed record PokemonCard(

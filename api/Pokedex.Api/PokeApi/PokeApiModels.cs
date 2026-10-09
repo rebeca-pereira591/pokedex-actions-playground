@@ -4,7 +4,6 @@ namespace Pokedex.Api.PokeApi;
 
 // Forma de las respuestas de PokeAPI, sólo con los campos que usa la app.
 // Los nombres en JSON van en snake_case (ver PokeApiJson).
-
 public sealed record NamedResource(string Name, string Url)
 {
     public int Id => ResourceUrl.IdFrom(Url);

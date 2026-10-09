@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "coverage": "vitest run --coverage",
     "lint": "biome check .",
     "format": "biome format --write .",
     "storybook": "storybook dev -p 6006",
