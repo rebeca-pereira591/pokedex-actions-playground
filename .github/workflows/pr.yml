@@ -99,7 +99,48 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Tests
         working-directory: web
-        run: pnpm exec vitest run --shard=${{ matrix.shard }}/${{ strategy.job-total }}
+        # Cada shard deja su parte (resultados y cobertura) en .vitest/blob. El umbral de cobertura se
+        # apaga acá: un shard ve sólo un tercio de los tests y nunca llegaría. Se chequea al juntarlos.
+        run: >-
+          pnpm exec vitest run --shard=${{ matrix.shard }}/${{ strategy.job-total }}
+          --reporter=default --reporter=blob --coverage --coverage.thresholds.lines=0
+      - uses: actions/upload-artifact@v7
+        with:
+          name: vitest-blob-${{ matrix.shard }}
+          path: web/.vitest/blob
+          include-hidden-files: true   # .vitest es una carpeta oculta: sin esto no sube nada
+          if-no-files-found: error     # si el shard no dejó su parte, es rojo
+          retention-days: 1
+
+  web-coverage:
+    name: Front cobertura
+    needs: [changes, web-tests]
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    env:
+      HUSKY: 0
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: web/.nvmrc
+          cache: pnpm
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: vitest-blob-*
+          merge-multiple: true   # los tres shards en la misma carpeta
+          path: web/.vitest/blob
+      - name: Cobertura total
+        working-directory: web
+        # Junta los 3 shards y chequea el umbral de vite.config.ts. El error de Vitest se convierte en
+        # anotación para que aparezca en el comentario del PR. `shell: bash` por pipefail, como en el build.
+        shell: bash
+        run: >-
+          pnpm exec vitest run --merge-reports --coverage 2>&1
+          | sed -E 's/^ERROR: (Coverage .*)/::error title=Cobertura del front::\1/'
 
   api:
     name: Back (build, tests)
@@ -116,20 +157,26 @@ jobs:
       - name: Build
         run: dotnet build api/Pokedex.slnx --no-restore -c Release
       - name: Tests
-        run: dotnet test --solution api/Pokedex.slnx --no-build -c Release
+        run: >-
+          dotnet test --solution api/Pokedex.slnx --no-build -c Release
+          --coverlet --coverlet-output-format cobertura --coverlet-exclude-by-file "**/obj/**"
+          --results-directory "${{ github.workspace }}/TestResults"
+      - name: Cobertura
+        # Un poco por debajo de lo que hay hoy (99,7 % de líneas): la cobertura no puede bajar.
+        run: node .github/scripts/coverage-check.mjs TestResults 95 "del back"
 
   gate:
     name: PR gate
-    needs: [changes, web, web-tests, api]
+    needs: [changes, web, web-tests, web-coverage, api]
     if: always()   # corre aunque un job anterior falle o se saltee: siempre da un veredicto
     runs-on: ubuntu-latest
     steps:
       - name: Veredicto
         run: |
-          echo "changes=${{ needs.changes.result }} web=${{ needs.web.result }} web-tests=${{ needs.web-tests.result }} api=${{ needs.api.result }}"
+          echo "changes=${{ needs.changes.result }} web=${{ needs.web.result }} web-tests=${{ needs.web-tests.result }} web-coverage=${{ needs.web-coverage.result }} api=${{ needs.api.result }}"
           [ "${{ needs.changes.result }}" = "success" ] || { echo "No se pudo detectar qué cambió."; exit 1; }
           # web-tests es una matriz: su resultado es "failure" si falló cualquiera de los shards.
-          for r in "${{ needs.web.result }}" "${{ needs.web-tests.result }}" "${{ needs.api.result }}"; do
+          for r in "${{ needs.web.result }}" "${{ needs.web-tests.result }}" "${{ needs.web-coverage.result }}" "${{ needs.api.result }}"; do
             case "$r" in
               success|skipped) ;;   # skipped = el PR no tocaba esa parte
               *) echo "Un job terminó en: $r"; exit 1 ;;
@@ -139,7 +186,7 @@ jobs:
 
   report:
     name: Resultados
-    needs: [changes, web, web-tests, api, gate]
+    needs: [changes, web, web-tests, web-coverage, api, gate]
     # Siempre, salvo en PRs que vienen de un fork: ahí el token no puede escribir comentarios.
     if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest

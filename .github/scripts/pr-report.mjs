@@ -69,7 +69,7 @@ async function annotations(job) {
 }
 
 // La API devuelve los jobs en cualquier orden: se ordenan como se leen en el workflow.
-const ORDER = ["Detectar cambios", "Front (", "Front tests", "Back", GATE_JOB];
+const ORDER = ["Detectar cambios", "Front (", "Front tests", "Front cobertura", "Back", GATE_JOB];
 const rank = (job) => {
   const index = ORDER.findIndex((prefix) => job.name.startsWith(prefix));
   return index === -1 ? ORDER.length : index;
