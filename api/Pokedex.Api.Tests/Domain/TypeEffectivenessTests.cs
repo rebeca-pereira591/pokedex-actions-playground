@@ -58,6 +58,12 @@ public class TypeEffectivenessTests
     }
 
     [Fact]
+    public void Fire_attack_against_a_grass_pokemon_is_super_effective()
+    {
+        Assert.Equal(2, TypeEffectiveness.AgainstAll("fire", [FixtureData.Type("grass")]));
+    }
+
+    [Fact]
     public void Single_type_against_itself_uses_the_type_table()
     {
         Assert.Equal(0.5, TypeEffectiveness.Against("fire", FixtureData.Type("fire")));

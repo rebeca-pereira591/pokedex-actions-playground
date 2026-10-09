@@ -20,6 +20,10 @@ public static class TypeEffectiveness
         return 1;
     }
 
+    // Cuánto daño hace un ataque de un tipo contra un Pokémon de uno o dos tipos.
+    public static double AgainstAll(string attacking, IReadOnlyList<DefendingType> defending) =>
+        defending.Sum(type => Against(attacking, type));
+
     // Para un Pokémon de uno o dos tipos, el multiplicador de cada tipo atacante es el PRODUCTO de
     // los multiplicadores contra cada uno de sus tipos. Por eso aparecen x4 y x¼, y una inmunidad
     // (x0) anula el resto. Se devuelven sólo los que no son x1, en el orden de los tipos.
