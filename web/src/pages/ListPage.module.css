@@ -119,4 +119,5 @@
   position: absolute;
   inset: 0;
   background: radial-gradient(60% 40% at 50% 100%, rgb(255 140 60 / 0.08), transparent 70%);
+  pointer-events: none; /* es decoración: los clicks tienen que llegar a las tarjetas de abajo */
 }
