@@ -1,0 +1,36 @@
+# Le envía a GitHub la lista COMPLETA de dependencias, incluidas las transitivas.
+#
+# Sin esto, GitHub sólo ve las dependencias directas: lee los .csproj (no lo que trae cada paquete) y no
+# entiende el pnpm-lock.yaml de pnpm 12 (dos documentos YAML en un archivo). Y lo que GitHub no ve,
+# Dependabot no lo puede alertar: Microsoft.OpenApi 2.0.0, vulnerable, llega a través de
+# Microsoft.AspNetCore.OpenApi y pasaba desapercibido.
+name: Dependency graph
+
+on:
+  push:
+    branches: [main]   # lo que usa Dependabot para las alertas
+  pull_request:        # lo que usa el dependency review del PR para ver también las transitivas
+  workflow_dispatch:
+
+permissions:
+  contents: write      # la API de dependency submission lo exige
+
+jobs:
+  submit:
+    name: Enviar dependencias
+    # En PRs de forks el token no puede escribir: se saltea.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.x
+      - name: Restaurar paquetes de NuGet
+        # El restore deja obj/project.assets.json con el árbol completo, que es lo que lee el detector.
+        run: dotnet restore api/Pokedex.slnx
+      # Acción de terceros: fijada por SHA (un tag se puede mover, un SHA no). v0.1.6, del 2026-09-03.
+      - uses: advanced-security/component-detection-dependency-submission-action@b282c67b1008fde9b60da4bdfcd8849613e293b2 # v0.1.6
+        with:
+          detectorsCategories: Npm,NuGet
+          directoryExclusionList: "**/node_modules/**"
