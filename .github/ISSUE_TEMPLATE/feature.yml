@@ -1,0 +1,26 @@
+name: Idea o mejora
+description: Algo nuevo para la app o para el repo.
+title: "feat: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Qué problema resuelve
+      description: Antes que la solución, el para qué.
+      placeholder: Para elegir un equipo hay que abrir las fichas de a una.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Qué se te ocurre
+      placeholder: Un comparador de dos Pokémon lado a lado.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas que pensaste
+    validations:
+      required: false

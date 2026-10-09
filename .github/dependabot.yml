@@ -6,6 +6,9 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    commit-message:                 # títulos con Conventional Commits: "build(deps): bump ..."
+      prefix: build
+      include: scope
     cooldown:                       # sólo versiones con al menos 14 días publicadas (no aplica a
       default-days: 14              # los arreglos de seguridad, que llegan apenas salen)
     groups:                         # un PR por semana con todo lo menor, en vez de uno por paquete
@@ -20,6 +23,9 @@ updates:
     directory: /api
     schedule:
       interval: weekly
+    commit-message:                 # títulos con Conventional Commits: "build(deps): bump ..."
+      prefix: build
+      include: scope
     cooldown:
       default-days: 14
     groups:
@@ -30,5 +36,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    commit-message:                 # títulos con Conventional Commits: "build(deps): bump ..."
+      prefix: build
+      include: scope
     cooldown:
       default-days: 14
