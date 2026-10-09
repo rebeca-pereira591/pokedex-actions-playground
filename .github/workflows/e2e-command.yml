@@ -1,4 +1,7 @@
-# El comando "/e2e" en un comentario de PR (o "/e2e @smoke" para un subconjunto).
+# El comando "/e2e" en un comentario de PR (o "/e2e smoke" para un subconjunto).
+#
+# La etiqueta va SIN arroba: en un comentario de GitHub "@smoke" es una mención y le llega una
+# notificación al usuario que se llame así. El workflow le agrega el "@" de Playwright por dentro.
 #
 # Este workflow sólo VALIDA el pedido y DISPARA e2e.yml sobre la rama del PR. No ejecuta código del PR:
 # un workflow de issue_comment corre en el contexto de main, y si ejecutara el código del PR, ese código
@@ -57,14 +60,14 @@ jobs:
             reply "\`/e2e\` no corre en PRs que vienen de un fork."; exit 0
           fi
 
-          # Sólo la primera línea, y sólo dos formas válidas: "/e2e" o "/e2e @etiqueta".
+          # Sólo la primera línea, y sólo dos formas válidas: "/e2e" o "/e2e etiqueta" (sin @).
           first=$(printf '%s\n' "$BODY" | head -n1 | tr -d '\r')
           if [[ "$first" =~ ^/e2e[[:space:]]*$ ]]; then
             grep=""
-          elif [[ "$first" =~ ^/e2e[[:space:]]+(@[a-z0-9-]+)[[:space:]]*$ ]]; then
-            grep="${BASH_REMATCH[1]}"
+          elif [[ "$first" =~ ^/e2e[[:space:]]+([a-z0-9-]+)[[:space:]]*$ ]]; then
+            grep="@${BASH_REMATCH[1]}"   # la etiqueta de Playwright lleva @
           else
-            reply "$(printf 'No entendí el pedido. Uso:\n\n- `/e2e`: corre todos los tests de punta a punta.\n- `/e2e @smoke`: corre sólo los marcados con esa etiqueta.')"
+            reply "$(printf 'No entendí el pedido. Uso:\n\n- `/e2e`: corre todos los tests de punta a punta.\n- `/e2e smoke`: corre sólo los tests con la etiqueta `@smoke`.')"
             exit 0
           fi
 
