@@ -1,0 +1,58 @@
+# Preview de cada PR en GitHub Pages: la app (con mocks, porque no hay backend público) y el Storybook,
+# en https://<usuario>.github.io/<repo>/pr-preview/pr-<número>/. Se actualiza en cada push y se borra
+# al cerrar el PR. El sitio de main vive en la raíz (pages.yml) y no se pisan.
+name: PR preview
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+
+# Una preview a la vez por PR: un push nuevo cancela la publicación anterior.
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write        # publicar en la rama gh-pages
+  pull-requests: write   # comentar el link
+
+jobs:
+  preview:
+    name: Preview
+    # Un PR de un fork no puede escribir en este repo: no hay preview.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    env:
+      HUSKY: 0
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        if: github.event.action != 'closed'
+      - uses: actions/setup-node@v7
+        if: github.event.action != 'closed'
+        with:
+          node-version-file: web/.nvmrc
+          cache: pnpm
+      - name: Instalar dependencias
+        if: github.event.action != 'closed'
+        run: pnpm install --frozen-lockfile
+      - name: Build de la app y del Storybook
+        if: github.event.action != 'closed'
+        working-directory: web
+        env:
+          # La subcarpeta de este PR: Vite la usa para las rutas de los assets.
+          VITE_BASE: /${{ github.event.repository.name }}/pr-preview/pr-${{ github.event.pull_request.number }}/
+          VITE_HASH_ROUTER: "true"   # Pages no redirige rutas: /#/pokemon/94 en vez de /pokemon/94
+        run: |
+          pnpm exec vite build --mode mocks
+          pnpm exec storybook build --quiet --output-dir dist/storybook
+
+      # Publica web/dist en gh-pages/pr-preview/pr-N/ y deja un comentario con el link; con el PR
+      # cerrado, borra esa carpeta. Acción de terceros fijada por SHA (v1.8.1).
+      - uses: rossjrw/pr-preview-action@ffa7509e91a3ec8dfc2e5536c4d5c1acdf7a6de9 # v1.8.1
+        with:
+          source-dir: web/dist
+          preview-branch: gh-pages
+          umbrella-dir: pr-preview
+          action: auto   # deploy al abrir o pushear, remove al cerrar

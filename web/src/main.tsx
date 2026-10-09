@@ -8,7 +8,12 @@ import "./styles/global.css";
 async function startMocks() {
   if (import.meta.env.VITE_USE_MOCKS !== "true") return;
   const { worker } = await import("./mocks/browser");
-  await worker.start({ onUnhandledFrame: "bypass", quiet: true });
+  await worker.start({
+    onUnhandledFrame: "bypass",
+    quiet: true,
+    // En una subcarpeta (las previews de Pages) el service worker está ahí, no en la raíz del dominio.
+    serviceWorker: { url: `${import.meta.env.BASE_URL}mockServiceWorker.js` },
+  });
 }
 
 const root = document.getElementById("root");

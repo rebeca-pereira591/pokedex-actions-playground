@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
-import { BrowserRouter, Route, Routes } from "react-router";
+import { BrowserRouter, HashRouter, Route, Routes } from "react-router";
 import { DetailPage } from "./pages/DetailPage";
 import { ListPage } from "./pages/ListPage";
 
@@ -21,12 +21,16 @@ export function Providers({ children, client }: { children: ReactNode; client?: 
   return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
 }
 
+// GitHub Pages sólo sirve archivos: recargar /pokemon/94 daría 404 porque ese archivo no existe. Ahí se
+// usa HashRouter (/#/pokemon/94), donde la ruta va después del # y nunca llega al servidor.
+const Router = import.meta.env.VITE_HASH_ROUTER === "true" ? HashRouter : BrowserRouter;
+
 export function App() {
   return (
-    <BrowserRouter>
+    <Router>
       <Providers>
         <AppRoutes />
       </Providers>
-    </BrowserRouter>
+    </Router>
   );
 }
