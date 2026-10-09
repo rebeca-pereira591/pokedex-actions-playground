@@ -1,14 +1,25 @@
-// Review con IA de un PR: baja el diff, se lo pasa a un modelo de GitHub Models junto con las reglas de
+// Review con IA de un PR: baja el diff, se lo pasa a un modelo de Gemini (Google) junto con las reglas de
 // .github/prompts/review.md, y publica lo que encuentre como un review con comentarios en las líneas.
 //
-// Variables: GITHUB_TOKEN (con models: read y pull-requests: write), GITHUB_REPOSITORY, PR_NUMBER,
-// HEAD_SHA y MODEL (opcional).
+// El plan original usaba GitHub Models, que GitHub retiró el 2026-07-30. Gemini tiene una capa gratuita
+// sin tarjeta y acepta el mismo formato de pedido (el "chat completions" de OpenAI).
+//
+// Variables: GITHUB_TOKEN (pull-requests: write), GEMINI_API_KEY, GITHUB_REPOSITORY, PR_NUMBER, HEAD_SHA,
+// MODELS (opcional: lista separada por comas) y DRY_RUN (opcional: muestra el review sin publicarlo).
 
 import { readFileSync } from "node:fs";
 
 const env = process.env;
 const api = `https://api.github.com/repos/${env.GITHUB_REPOSITORY}`;
-const MODEL = env.MODEL || "openai/gpt-4.1";
+// Se prueban en orden: si uno está saturado (503) o se pasó de cuota (429), se usa el siguiente.
+const MODELS = (env.MODELS || "gemini-3.8-flash,gemini-3.6-flash,gemini-3.5-flash").split(",").map((m) => m.trim());
+const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+
+// Validar al principio que la clave esté: si no, el error aparecería después como un 401 confuso.
+if (!env.GEMINI_API_KEY) {
+  console.log("::error title=Review con IA::Falta el secret GEMINI_API_KEY en el repo.");
+  process.exit(1);
+}
 const MAX_DIFF = 60_000; // caracteres: un diff enorme no entra en el modelo (y gasta cuota)
 
 async function github(path, { accept = "application/vnd.github+json", ...options } = {}) {
@@ -44,21 +55,32 @@ for (const row of diff.split("\n")) {
 
 // 3. Las reglas viven en el repo; el modelo las recibe como instrucciones y el diff como contenido.
 const rules = readFileSync(".github/prompts/review.md", "utf8");
-const response = await fetch("https://models.github.ai/inference/chat/completions", {
-  method: "POST",
-  headers: { Authorization: `Bearer ${env.GITHUB_TOKEN}`, "Content-Type": "application/json" },
-  body: JSON.stringify({
-    model: MODEL,
-    temperature: 0, // lo más estable posible: el mismo diff, la misma respuesta
-    response_format: { type: "json_object" },
-    messages: [
-      { role: "system", content: rules },
-      { role: "user", content: `Diff del PR #${env.PR_NUMBER}:\n\n\`\`\`diff\n${diff}\n\`\`\`` },
-    ],
-  }),
-});
-if (!response.ok) throw new Error(`GitHub Models: ${response.status} ${await response.text()}`);
-const answer = (await response.json()).choices?.[0]?.message?.content ?? "";
+const messages = [
+  { role: "system", content: rules },
+  { role: "user", content: `Diff del PR #${env.PR_NUMBER}:\n\n\`\`\`diff\n${diff}\n\`\`\`` },
+];
+let MODEL;
+let answer;
+for (const model of MODELS) {
+  const response = await fetch(ENDPOINT, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${env.GEMINI_API_KEY}`, "Content-Type": "application/json" },
+    // temperature 0: lo más estable posible, el mismo diff da la misma respuesta.
+    body: JSON.stringify({ model, temperature: 0, response_format: { type: "json_object" }, messages }),
+  });
+  if (response.status === 503 || response.status === 429) {
+    console.log(`${model}: ${response.status === 503 ? "saturado" : "sin cuota"}, se prueba el siguiente.`);
+    continue;
+  }
+  if (!response.ok) throw new Error(`Gemini (${model}): ${response.status} ${await response.text()}`);
+  MODEL = model;
+  answer = (await response.json()).choices?.[0]?.message?.content ?? "";
+  break;
+}
+if (!MODEL) {
+  console.log(`::error title=Review con IA::Ningún modelo respondió (${MODELS.join(", ")}). Probar más tarde.`);
+  process.exit(1);
+}
 
 // 4. Fallar cerrado: si el modelo no devolvió el JSON pedido, es un error, no "sin hallazgos".
 let findings;
@@ -93,6 +115,12 @@ const summary = [
   general.length ? `\nFuera de las líneas del diff:\n\n${general.join("\n")}` : "",
   "\n<sub>Es una ayuda, no un veredicto: puede equivocarse. Para volver a pedirlo, sacar y poner la etiqueta `ai-review`.</sub>",
 ].join("\n");
+
+if (env.DRY_RUN) {
+  console.log(summary);
+  for (const c of inline) console.log(`\n--- ${c.path}:${c.line}\n${c.body}`);
+  process.exit(0);
+}
 
 // 6. Un review de tipo COMMENT: no aprueba ni bloquea, sólo comenta.
 await github(`/pulls/${env.PR_NUMBER}/reviews`, {
