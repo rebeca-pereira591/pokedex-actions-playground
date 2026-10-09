@@ -12,15 +12,14 @@ permissions:
 jobs:
   review:
     name: Review con IA
-    # Sólo esta etiqueta, y sólo PRs de este repo (las etiquetas las ponen colaboradores; un fork no
-    # recibe un token que pueda comentar ni usar los modelos).
+    # Sólo esta etiqueta, y sólo PRs de este repo (las etiquetas las ponen colaboradores; un PR de un
+    # fork no recibe los secrets).
     if: >-
       github.event.label.name == 'ai-review' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      models: read          # usar GitHub Models con el token del workflow: sin claves aparte
       pull-requests: write  # publicar el review
     steps:
       # Las reglas y el script se toman de la rama base (main), no del PR: así un PR no puede cambiar
@@ -32,6 +31,9 @@ jobs:
       - name: Revisar el diff y publicar el review
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          # La clave de Gemini (Google AI Studio, capa gratuita): como variable de entorno y sólo en este
+          # paso, nunca escrita en el script ni en otro paso.
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: node .github/scripts/ai-review.mjs
