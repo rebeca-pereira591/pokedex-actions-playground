@@ -100,7 +100,9 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: web/.nvmrc
-          cache: pnpm
+          # SIN cache a propósito. Este workflow corre en el contexto de main (issue_comment) pero ejecuta
+          # código del PR: si guardara caché, un PR podría dejar ahí algo envenenado que después usarían
+          # los workflows de main. CodeQL lo marcó (actions/cache-poisoning). Tarda más, es más seguro.
       - name: Instalar dependencias
         run: pnpm install --frozen-lockfile
       - name: Instalar el navegador
