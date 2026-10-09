@@ -37,7 +37,7 @@ export function PokemonCard({ pokemon, selected = false }: PokemonCardProps) {
       <span className={styles.name}>{pokemon.name}</span>
       <span className={styles.chips}>
         {pokemon.types.map((t) => (
-          <TypeChip key={t.name} type={t} />
+          <TypeChip key={t.name} type={t} size="small" />
         ))}
       </span>
       <span className={styles.foot}>
