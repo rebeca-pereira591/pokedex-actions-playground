@@ -39,15 +39,15 @@ jobs:
           fi
           files=$(git diff --name-only "$BASE"...HEAD)
           echo "Archivos del PR:"; echo "$files"
-          # Lo compartido (este workflow, la config de pnpm, global.json) cuenta para la parte que afecta.
+          # Lo compartido (los archivos de CI, la config de pnpm, global.json) cuenta para la parte que afecta.
           web=false; api=false
-          echo "$files" | grep -qE '^(web/|package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|\.npmrc|\.github/workflows/pr\.yml)' && web=true
-          echo "$files" | grep -qE '^(api/|fixtures/|global\.json|\.github/workflows/pr\.yml)' && api=true
+          echo "$files" | grep -qE '^(web/|package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|\.npmrc|\.github/)' && web=true
+          echo "$files" | grep -qE '^(api/|fixtures/|global\.json|\.github/)' && api=true
           echo "web=$web" >> "$GITHUB_OUTPUT"
           echo "api=$api" >> "$GITHUB_OUTPUT"
 
   web:
-    name: Front (lint, build, tests)
+    name: Front (lint, build)
     needs: changes
     if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
@@ -64,13 +64,42 @@ jobs:
         run: pnpm install --frozen-lockfile   # falla si el lockfile no coincide con los package.json
       - name: Lint
         working-directory: web
-        run: pnpm lint
+        # --reporter=github: cada error sale como anotación, marcado en la línea exacta del diff
+        run: pnpm exec biome check --reporter=github .
       - name: Type check y build
         working-directory: web
-        run: pnpm build
+        # Los errores de tsc salen como anotación (setup-node registra su formato), pero con la ruta
+        # relativa a web/ ("src/..."), y GitHub las busca desde la raíz del repo: se antepone "web/".
+        # `shell: bash` activa pipefail; sin eso el paso tomaría el código de salida de sed (0) y daría
+        # verde aunque el build falle.
+        shell: bash
+        run: pnpm build 2>&1 | sed -E 's#^(src/)#web/\1#'
+
+  web-tests:
+    name: Front tests (${{ matrix.shard }}/3)
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    # Los tests repartidos en 3 máquinas en paralelo. La suite es chica: es para aprender la técnica,
+    # que en una suite grande baja los minutos de espera.
+    strategy:
+      fail-fast: false   # si un shard falla, los otros terminan igual: se ven todos los tests rotos
+      matrix:
+        shard: [1, 2, 3]
+    env:
+      HUSKY: 0
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: web/.nvmrc
+          cache: pnpm
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
       - name: Tests
         working-directory: web
-        run: pnpm test
+        run: pnpm exec vitest run --shard=${{ matrix.shard }}/${{ strategy.job-total }}
 
   api:
     name: Back (build, tests)
@@ -91,18 +120,42 @@ jobs:
 
   gate:
     name: PR gate
-    needs: [changes, web, api]
+    needs: [changes, web, web-tests, api]
     if: always()   # corre aunque un job anterior falle o se saltee: siempre da un veredicto
     runs-on: ubuntu-latest
     steps:
       - name: Veredicto
         run: |
-          echo "changes=${{ needs.changes.result }} web=${{ needs.web.result }} api=${{ needs.api.result }}"
+          echo "changes=${{ needs.changes.result }} web=${{ needs.web.result }} web-tests=${{ needs.web-tests.result }} api=${{ needs.api.result }}"
           [ "${{ needs.changes.result }}" = "success" ] || { echo "No se pudo detectar qué cambió."; exit 1; }
-          for r in "${{ needs.web.result }}" "${{ needs.api.result }}"; do
+          # web-tests es una matriz: su resultado es "failure" si falló cualquiera de los shards.
+          for r in "${{ needs.web.result }}" "${{ needs.web-tests.result }}" "${{ needs.api.result }}"; do
             case "$r" in
               success|skipped) ;;   # skipped = el PR no tocaba esa parte
               *) echo "Un job terminó en: $r"; exit 1 ;;
             esac
           done
           echo "Todo en orden."
+
+  report:
+    name: Resultados
+    needs: [changes, web, web-tests, api, gate]
+    # Siempre, salvo en PRs que vienen de un fork: ahí el token no puede escribir comentarios.
+    if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    # Este job no es requerido: si la API falla, el comentario no sale, pero el merge lo decide el gate.
+    permissions:
+      contents: read        # checkout del script
+      actions: read         # leer los jobs y pasos del run
+      checks: read          # leer las anotaciones de cada job
+      pull-requests: write  # crear y editar el comentario
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/scripts   # sólo hace falta el script
+      - name: Tabla de resultados
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: node .github/scripts/pr-report.mjs
