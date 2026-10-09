@@ -26,7 +26,9 @@ jobs:
       # el prompt para que el review le dé el visto bueno.
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          # La RAMA base (no base.sha): base.sha es el main del momento en que se abrió el PR, y un PR
+          # viejo seguiría usando reglas y script viejos.
+          ref: ${{ github.event.pull_request.base.ref }}
           sparse-checkout: .github
       - name: Revisar el diff y publicar el review
         env:
